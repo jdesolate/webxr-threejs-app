@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "snowpack dev"
   },
   "devDependencies": {
     "vite": "^4.2.0"
   },
   "dependencies": {
+    "snowpack": "^3.8.8",
     "socket.io-client": "^4.6.1",
     "three": "^0.151.2"
   }

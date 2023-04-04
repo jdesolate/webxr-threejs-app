@@ -1,31 +1,55 @@
-const express = require("express");
-const app = express();
-const http = require("http");
+const { createServer } = require("http");
 const { Server } = require("socket.io");
-const cors = require("cors");
+const { instrument } = require("@socket.io/admin-ui");
 
-app.use(cors);
+const httpServer = createServer();
 
-const server = http.createServer(app);
-
-const io = new Server(server, {
+const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:5174"],
-    methods: ["GET", "POST"],
+    origin: ["http://localhost:5173", "https://admin.socket.io"],
+    credentials: true,
   },
+});
+
+const userIo = io.of("/user");
+
+userIo.on("connection", (socket) => {
+  console.log("connected user namespace with username", +socket.username);
+});
+
+userIo.use((socket, next) => {
+  if (socket.handshake.auth.token) {
+    socket.username = getUsernameFromToken(socket.handshake.auth.token);
+    console.log(socket.username);
+    next();
+  } else {
+    next(new Error("Please send token"));
+  }
+});
+
+function getUsernameFromToken(token) {
+  return token;
+}
+
+instrument(io, {
+  auth: false,
 });
 
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
-  socket.on("chat message", (msg) => {
-    io.emit("chat message", msg);
+  socket.on("send-message", (message, room) => {
+    if (room === "") {
+      socket.broadcast.emit("receive-message", message);
+    } else {
+      socket.to(room).emit("receive-message", message);
+    }
   });
+  socket.on("join-room", (room, cb) => {
+    socket.join(room);
+    cb(`Joined ${room}`);
+  });
+
+  socket.on("ping", (n) => console.log(n));
 });
 
-server.listen(3000, () => {
-  console.log("Server is running and listening on *:3000");
-});
-
-// app.get("/", (req, res) => {
-//   res.sendFile(__dirname + "/index.html");
-// });
+httpServer.listen(3000);
