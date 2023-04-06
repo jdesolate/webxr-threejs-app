@@ -1,59 +1,62 @@
-import { io } from "socket.io-client";
+import * as THREE from "three";
 
-const joinRoomButton = document.getElementById("room-button");
-const messageInput = document.getElementById("message-input");
-const roomInput = document.getElementById("room-input");
-const form = document.getElementById("form");
+// Set up the camera and scene
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000,
+);
+const scene = new THREE.Scene();
 
-const socket = io("http://localhost:3000");
-const userSocket = io("http://localhost:3000/user", { auth: { token: "A" } });
+// Create a plane for the video feed
+const planeGeometry = new THREE.PlaneGeometry(16, 10);
+const planeMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  side: THREE.DoubleSide,
+});
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+plane.position.set(0, 0, -10);
+scene.add(plane);
 
-socket.on("connect", () => {
-  displayMessage(`You connected with id: ${socket.id}`);
+// Set up the renderer
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+const aspect = window.innerWidth / window.innerHeight;
+camera.aspect = aspect;
+camera.updateProjectionMatrix();
+
+document.body.appendChild(renderer.domElement);
+
+const video = document.createElement("video");
+video.autoplay = true;
+const texture = new THREE.VideoTexture(video);
+planeMaterial.map = texture;
+const material = new THREE.MeshBasicMaterial({ map: texture });
+const geometry = new THREE.PlaneGeometry(16, 10);
+const mesh = new THREE.Mesh(geometry, material);
+scene.add(mesh);
+navigator.mediaDevices.getUserMedia({ video: true }).then(function (stream) {
+  video.srcObject = stream; // replace with socket video stream
 });
 
-userSocket.on("connect_error", (error) => {
-  displayMessage(error);
-});
+// Create a 3D object to display on top of the video feed
+const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+cube.position.set(0, 0, -5);
+scene.add(cube);
 
-socket.on("receive-message", (message) => {
-  displayMessage(message);
-});
+// Render the scene
+function render() {
+  requestAnimationFrame(render);
 
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const message = messageInput.value;
-  const room = roomInput.value;
+  cube.rotation.x += 0.01;
+  cube.rotation.y += 0.01;
 
-  if (message === "") return;
-  displayMessage(message);
-  socket.emit("send-message", message, room);
+  renderer.render(scene, camera);
 
-  messageInput.value = "";
-});
-
-joinRoomButton.addEventListener("click", () => {
-  const room = roomInput.value;
-  socket.emit("join-room", room, (message) => {
-    displayMessage(message);
-  });
-});
-
-function displayMessage(message) {
-  const div = document.createElement("div");
-  div.textContent = message;
-  document.getElementById("message-container").append(div);
+  texture.needsUpdate = true;
 }
 
-let count = 0;
-
-setInterval(() => {
-  socket.volatile.emit("ping", ++count);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.target.matches("input")) return;
-
-  if (e.key === "c") socket.connect();
-  if (e.key === "d") socket.disconnect();
-});
+render();
